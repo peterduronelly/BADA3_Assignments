@@ -1,0 +1,202 @@
+---
+title: "duronelly_peter_d3_a3_markdown_171210"
+author: "Peter Duronelly"
+date: "December 8, 2017"
+output: html_document
+---
+
+<style>
+body {
+text-align: justify;
+font-size: 13px}
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, error = TRUE)
+
+```
+
+<center>
+#Homework assignment: Physical activities and mortality
+</center>
+
+### The data
+
+  The following analysis is based on the 'The Survey of Health, Ageing and Retirement in Europe (SHARE)', which is  a multidisciplinary and cross-national panel database of micro data on health, socio-economic status and social and family networks of more than 120,000 individuals aged 50 or older (more than 297,000 interviews). The data comes from the survey's 'Wave 2' in 2007 and 'Wave  5' in 2013. We are trying to find relationship between mortality ratios in the populatin between 50 and 80 years of age in 2007 and physical activities. Later we augment the model with other variables which may also be at play in influencing mortality ratios. 
+  
+  Or data includes 21848 observations, where the average mortality ratio is 5.7 pct. We will first use a linear model, than a probit model to find a relationship between sports and mortality. 
+  
+  More than 60 percent of people in our sample says he/she does some sports on a more or less frequent basis, 50 percent of which at least once a week. 
+<br>
+
+```{r, fig.align = 'center', warning = FALSE, echo=FALSE, message=FALSE, results='asis'}
+library(gmodels)
+library(erer)
+library(descr)
+library(arm)
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(lmtest)
+library(sandwich)
+library(DataCombine)
+library(stargazer)
+library(mfx)
+library(mlogit)
+library(data.table)
+library(pander)
+library(scales)
+
+
+setwd("C:/Users/peter/OneDrive/FOLDERS/CEU/Data Analysis 3/assignments/a 3")
+
+## READ DATA
+
+share <- read.csv("C:/Users/peter/OneDrive/FOLDERS/CEU/Data Analysis 3/data repo/mortality_oldage_eu.csv", na.strings = ".")
+
+share <- subset(share, age>=50 & age<=80)
+share <- subset(share, eduyears_mod!="." & income10g!="." & sports != ".")
+
+
+share <- data.table(share)
+share[, sportsfrequency := cut(sports, c(0,1,2,3,4), 
+                               labels = c("more then once a week", 
+                                          "once a week", "one to three times per month", "4" = "hardly ever"))]
+
+ggplot(data = share, aes(sportsfrequency)) +
+  geom_bar(aes(y = (..count..)/sum(..count..))) + theme_bw() + 
+  labs(title = "Physical activies", x = "frequency of doing sports", 
+       y = "frequency in the population") + scale_y_continuous(labels = percent) +
+  theme(plot.title = element_text(size = rel(1)))
+
+## FINDING PATTERNS USING CROSSTABLE
+
+  
+
+# Chi-square refuses H0: independence of deceased & sports at any reasonable level.
+
+## CREATE DUMMIES FOR FREQUENCY OF SPORTS ACTIVITIES
+
+share$sports_regularly <- as.numeric(share$sports == 1)
+share$sports_once_a_week <- as.numeric(share$sports == 2)
+share$sports_rarely <- as.numeric(share$sports == 3)
+
+# Deleting NAs for the dummies.
+share <- share[complete.cases(share[ , 48:50]), ]
+
+```
+<br>
+  It also looks, that there is a relationship between mortality and sport activities.
+  
+<br>
+<center>  
+```{r, fig.align = 'center', warning = FALSE, echo=FALSE, message=FALSE, results='asis'}
+chi <- chisq.test(share$deceased, share$sports, correct = FALSE)
+
+pander(chi)
+
+```
+</center>
+<br>
+
+### A simple linear model
+
+  Let's see how to what extent physical activities effect mortality at this age group! In order to assess this we are better to define three dummy variables: one for very frequent/regular phyisical activity (more than once a week), one for once a week, and one for rearely (one to three times a month). Those people who basically don't do sports get zero for every single dummy variable. The following linear model explains this relationship. 
+<br>
+<center>
+```{r, fig.align = 'center', warning = FALSE, echo=FALSE, message=FALSE, results='asis'}
+htmltools::includeHTML("lpm_sport1.html")
+```
+</center>
+<br>
+  Among those who do not do sports the epxected mortality ratio is more than nine percent, but if someone works out at least three times a month, this goes down to 5 percent (9.2 - 4.2). If the person works out more frequently, his/her survival chances go up by 1.7 percentage points. From this standpoint it doesn't matter whether the person works out more than once a week. The mortality ratio is completely the same. We also need to add, that mortality ratio for those wo work out rarely but still on a more regular basis slightly overlap, so their difference is only marginal. We also see that the coefficients are significant even if we correct for heteroskedasticity in our sample.
+<br>
+<center>
+```{r, fig.align = 'center', warning = FALSE, echo=FALSE, message=FALSE, results='asis'}
+htmltools::includeHTML("lmp_sport1_coefftest.html")
+```
+</center>
+<br>  
+  Working out on a regular basis may not be the only factor in influencing mortality rate. Education and income decile position may also have an effect. Testing nonlinear relationships between mortality and other factors we get the following visual relationships. 
+<br>
+<center>
+<div id="bg">
+  <img src="mortality education.png" alt="">
+</div> 
+</center>
+<br>
+  Years spent on education is also related to mortality. While the relationship looks to be polynomial at first glance, we may wanna stick with a linear form. The curvy part belongs to people of very low and very high education, while for the regions where the most people are represented the relationship seems to be linear. The next graph shows the sample distribution in terms of years spent on education. Most people do fit into the bracket of 5-15 years.
+  
+<br><center>
+```{r, fig.align = 'center', warning = FALSE, echo=FALSE, message=FALSE, results='asis'}
+ggplot(data = share, aes(eduyears_mod)) + geom_histogram(bins = 20) + theme_bw() + 
+  labs(title = "Sample distribution regarding education ", x = "Years spent on education", 
+       y = "frequency") +
+  theme(plot.title = element_text(size = rel(1)))
+```
+</center> 
+<br>
+  We can also assume that wealth/income also plays a role, for which have data on positions in the income decile. In this dimension the relationship looks second order polynomial. 
+<br>
+<center>
+<div id="bg">
+  <img src="mortality income.png" alt="">
+</div> 
+</center>
+<br>
+  Having all this in mind we can run an augmented linear probability model where beyond the three dummies for sports edication and income are also present on the left hand side of the model. 
+<br>
+<center>
+```{r, fig.align = 'center', warning = FALSE, echo=FALSE, message=FALSE, results='asis'}
+htmltools::includeHTML("lpm_sport2.html")
+```
+</center>
+<br> 
+  The most striking feature is the increase in the constant. While zero position in the income decile and zero years in education is not a meaningful interpretation, but the fact that the origin of the model is 3 percent higher means that the other factors do have an effect on mortality. Education and income are all significant although the quadratic term is not significant on a 1 percent level. (1.4 percent is still low enough to keep the factor representation in the model.) According to the model, one additional year spent in education decreased the chance of dieing in the period (2007-13) by 0.3 percent, which adds up to 3 percent over 10 years of study. 
+  
+  Also, by the model, having a master's degree decreases the chance of dying by 2.7 percentage points (4 ys in high school + 5 years in BSc + MA/MSc), having all other modelled factors (income and physical activity) unchanged. I am not plotting it, but the robust coefficient tests kept these result unchanged. Finally, income also effects mortality the way we can expect is: higher income means lower mortality across the spectrum. 
+
+
+### A logit model
+
+  A more advanced modelling tool is the logit model, which can be run on the same explanatory variables. The next table summarizes the regression with the sport dummies only and puts the marginal effect to the same table with our first linear model. The marginal effects were claculated from the glm model using the **maBina()** method of the **erer** package, which are slightly different than the **logitmfx**-type calculations. 
+  
+  In this model doing sports on less regular basis (three times per month) brings it down mortality by 3 percentage points only. If someone works out more than once a week, the ratio goes by 5 percent. 
+<br>
+<center>
+```{r, fig.align = 'center', warning = FALSE, echo=FALSE, message=FALSE, results='asis'}
+htmltools::includeHTML("probmodel_marginal.html")
+```
+</center>
+<br>
+
+  We can also run the logit regression on the extended model, which results in the following marginal effects. 
+
+<br>
+<center>
+```{r, fig.align = 'center', warning = FALSE, echo=FALSE, message=FALSE, results='asis'}
+logit2marginal <- read.csv("C:/Users/peter/OneDrive/FOLDERS/CEU/Data Analysis 3/data repo/marginal effects.csv", na.strings = ".")
+
+logit2marginal <- data.table(logit2marginal)
+pander(logit2marginal)
+```
+</center>
+<br>
+  As we see, marginal effects are closer or slightly closer to zero compared to the extendend LPM, just as in the case of the simple model. In case of the sprts dummies, here it matters how frequently someone work out (for instance 95 pct CIs for sports_rarely and sport_once_a_week only slightly overlaps), but the results suggest the same effect on sports, income and edication. Also, the significance of the quadratic term in the income variable is less convincing than the linear term, similar to the linear model. 
+  
+  Finally, we can compare the two multifactor models in terms of estimating probability ratios. 
+  
+<br>
+<center>
+<div id="bg">
+  <img src="comparing lpm and logit.png" alt="">
+</div> 
+</center>
+<br>
+  As we see, LPM underestimates probablities compared to logit in the high or low probability ranges, and overestimates them in the range of 3-10 percent. 
+  
+  
+###Summary
+
+  Mortality rate is a function of many factors. Based on SHARE survey of Health, Ageing and Retirement in Europe physical activity, age and education all play a role in mortality amongst the population between 50 and 80 years of age. The models do not explain a high ratio of variation within the sample, but we find patterns which are consistent with the popular view: higher education, higher income, and more frequent phyisical acitivities help people live longer. 
+  
